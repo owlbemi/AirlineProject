@@ -1,0 +1,22 @@
+---
+title: "AirlineProject"
+author: "Jake Lee"
+date: "`r Sys.Date()`"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+
+passenger_stats <- read_csv("Datasets/Air_Traffic_Passenger_Statistics.csv")
+delay <- read_csv("Datasets/airlines_delay.csv")
+satis <- read_csv("Datasets/invistico_Airline.csv")
+
+```
