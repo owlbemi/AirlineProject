@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+#load required packages
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
@@ -18,5 +19,11 @@ library(tidyverse)
 passenger_stats <- read_csv("Datasets/Air_Traffic_Passenger_Statistics.csv")
 delay <- read_csv("Datasets/airlines_delay.csv")
 satis <- read_csv("Datasets/invistico_Airline.csv")
+```
 
+```{r}
+#show summary of each datasets
+summary(passenger_stats)
+summary(delay)
+summary(satis)
 ```
