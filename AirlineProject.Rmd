@@ -10,6 +10,22 @@ runtime: shiny
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## References and Datasets
+
+**Airlines Delay** - By Ulrik Thyge Pedersen (Kaggle)
+
+<https://www.kaggle.com/datasets/ulrikthygepedersen/airlines-delay>
+
+**Airlines Customer Satisfaction** - By Sayantan Jana (Kaggle)
+
+<https://www.kaggle.com/datasets/sjleshrac/airlines-customer-satisfaction/data>
+
+**Airlines Traffic Passenger Statistics** - By The Devastator (Kaggle)
+
+<https://www.kaggle.com/datasets/thedevastator/airlines-traffic-passenger-statistics>
+
+## Reading Packages and Datasets
+
 ```{r}
 #load required packages
 library(ggplot2)
@@ -26,4 +42,37 @@ satis <- read_csv("Datasets/invistico_Airline.csv")
 summary(passenger_stats)
 summary(delay)
 summary(satis)
+```
+
+## Data Cleaning Process
+
+### Passenger Statistics
+
+```{r}
+#check for NA values
+any(is.na(passenger_stats))
+any(is.na(satis))
+```
+
+```{r}
+#select only international flights
+passenger_stats <- passenger_stats %>%
+  filter(`GEO Summary` == "International") %>%
+  select(-c(`Passenger Count`, `Terminal`, `Boarding Area`)) %>%
+  filter(`Operating Airline` == `Published Airline`) %>%
+  select(-c(`Published Airline`, `Published Airline IATA Code`, `Price Category Code`, `index`, `GEO Summary`))
+```
+
+```{r}
+summary(passenger_stats)
+```
+
+### Delay Statistics
+
+```{r}
+any(is.na(delay))
+```
+
+```{r}
+
 ```
