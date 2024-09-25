@@ -31,6 +31,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
+library(plotly)
+library(ggiraph)
 
 passenger_stats <- read_csv("Datasets/Air_Traffic_Passenger_Statistics.csv")
 delay <- read_csv("Datasets/airlines_delay.csv")
@@ -74,5 +76,62 @@ any(is.na(delay))
 ```
 
 ```{r}
+delay <- delay %>%
+  select(-`Class`)
+```
 
+```{r}
+summary(delay)
+```
+
+### Satisfaction Score
+
+```{r}
+any(is.na(satis))
+```
+
+## Exploratory Data Analysis (EDA)
+
+```{r}
+# Which region has the most number of passengers who got deplaned
+p_deplane_region <- passenger_stats %>%
+  filter(`Activity Type Code`=='Deplaned') %>%
+  ggplot(aes(Year, `Adjusted Passenger Count`, color = `GEO Region`)) +
+  geom_point() +
+  theme_bw()
+
+ggplotly(p_deplane_region)
+```
+
+```{r}
+# Which airline has the most number of passengers who got deplaned
+p_deplane_airline <- passenger_stats %>%
+  filter(`Activity Type Code`=='Deplaned') %>%
+  ggplot(aes(Year, `Adjusted Passenger Count`, color = `Operating Airline IATA Code`)) +
+  geom_point() +
+  theme_bw()
+
+ggplotly(p_deplane_airline)
+```
+
+```{r}
+passenger_stats$Month <- match(passenger_stats$Month, month.name)
+
+p_yearly_trend <-
+  ggplot(passenger_stats, mapping = aes(
+    x = Month,
+    y = `Adjusted Passenger Count`
+  )) + 
+  geom_point() +
+  geom_smooth(method = "lm", fit = `Adjusted Passenger Count` ~ Month) + 
+  facet_wrap(~Year, scales = 'free_y')
+
+p_yearly_trend
+```
+
+```{r}
+# Create new df to calculate total passenger count in certain years
+passenger_summary <- passenger_stats %>%
+  group_by(Year, Month) %>%
+  summarize(`Total Passenger Count` = sum(`Adjusted Passenger Count`))
 ```
