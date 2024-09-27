@@ -24,6 +24,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 <https://www.kaggle.com/datasets/thedevastator/airlines-traffic-passenger-statistics>
 
+Airport Code and Geographical Information - Kaggle
+
+<https://www.kaggle.com/datasets/jinbonnie/airport-information>
+
 ## Reading Packages and Datasets
 
 ```{r}
@@ -137,5 +141,56 @@ passenger_summary <- passenger_stats %>%
 ```
 
 ```{r}
+total_airline <- delay %>%
+  count(delay$Airline)
 
+total_airline$per <- total_airline %>%
+  summarise(per = (percent = 100 * n / sum(total_airline$n)))
+
+colnames(total_airline) <- c('airline', 'n', 'per')
+```
+
+```{r}
+airline_pie <- ggplot(total_airline, aes(x = "", y = per$per, fill = airline)) + 
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void()
+
+airline_pie
+```
+
+```{r}
+airport_loc <- read.csv('Datasets/airport_code.csv')
+```
+
+```{r}
+total_delay <- delay %>%
+  count(delay$AirportFrom)
+
+airport_all <- airport_loc %>%
+  left_join(airport_loc, total_delay, join_by())
+```
+
+```{r}
+my.world <- map_data("world")
+
+p1 <- my.world %>% 
+  ggplot(aes(x = long, y = lat)) + 
+  # create a world map background
+  geom_polygon(aes(group = group), 
+               color = "tomato", linewidth = .2, 
+               show.legend = F, fill = "black") +
+  
+  coord_fixed(ratio = 1.2, # adjust aspect ratio
+              ylim = c(-60, 90)) + # remove Antarctica 
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "black")) 
+```
+
+```{r}
+p2 <- p1 +
+  geom_point(data = airport_loc, aes(x = latitude_deg, y = longitude_deg), 
+             color = 'yellow', size = n, shape = ".", alpha = 0.6)
+
+p2
 ```
