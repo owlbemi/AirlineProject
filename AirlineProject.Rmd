@@ -123,7 +123,7 @@ p_yearly_trend <-
     y = `Adjusted Passenger Count`
   )) + 
   geom_point() +
-  geom_smooth(method = "lm", fit = `Adjusted Passenger Count` ~ Month) + 
+  geom_smooth(method = "loess", fit = `Adjusted Passenger Count` ~ Month) + 
   facet_wrap(~Year, scales = 'free_y')
 
 p_yearly_trend
@@ -134,4 +134,8 @@ p_yearly_trend
 passenger_summary <- passenger_stats %>%
   group_by(Year, Month) %>%
   summarize(`Total Passenger Count` = sum(`Adjusted Passenger Count`))
+```
+
+```{r}
+
 ```
