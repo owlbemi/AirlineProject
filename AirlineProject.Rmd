@@ -24,9 +24,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 <https://www.kaggle.com/datasets/thedevastator/airlines-traffic-passenger-statistics>
 
-Airport Code and Geographical Information - Kaggle
+**Airport Code and Geographical Information** - Kaggle
 
 <https://www.kaggle.com/datasets/jinbonnie/airport-information>
+
+**How to scrape Google Maps** - Bernardas Ališauskas
+
+<https://scrapfly.io/blog/posts/how-to-scrape-google-maps>
 
 ## Reading Packages and Datasets
 
@@ -164,33 +168,206 @@ airport_loc <- read.csv('Datasets/airport_code.csv')
 ```
 
 ```{r}
-total_delay <- delay %>%
-  count(delay$AirportFrom)
-
-airport_all <- airport_loc %>%
-  left_join(airport_loc, total_delay, join_by())
-```
-
-```{r}
 my.world <- map_data("world")
 
 p1 <- my.world %>% 
   ggplot(aes(x = long, y = lat)) + 
   # create a world map background
   geom_polygon(aes(group = group), 
-               color = "tomato", linewidth = .2, 
-               show.legend = F, fill = "black") +
+               color = "blue", linewidth = .2, 
+               show.legend = F, fill = "white") +
   
   coord_fixed(ratio = 1.2, # adjust aspect ratio
               ylim = c(-60, 90)) + # remove Antarctica 
   theme_void() + 
-  theme(plot.background = element_rect(fill = "black")) 
+  theme(plot.background = element_rect(fill = "white")) 
 ```
 
 ```{r}
 p2 <- p1 +
-  geom_point(data = airport_loc, aes(x = latitude_deg, y = longitude_deg), 
-             color = 'yellow', size = n, shape = ".", alpha = 0.6)
+  geom_point(data = airport_loc, aes(x = longitude_deg, y = latitude_deg),
+             color = 'yellow', size = 0.5, shape = ".", alpha = 0.6)
+p2 <- p2 + labs(title = "Location of airports around the World")
+```
 
+```{r}
 p2
+```
+
+```{r}
+delay_topDep <- delay %>%
+  count(AirportFrom, sort = TRUE) %>%
+  slice(1:10)
+
+delay_topDep
+
+delay_topArv <- delay %>%
+  count(AirportTo, sort = TRUE) %>%
+  slice(1:10)
+
+delay_topArv
+```
+
+```{r}
+delayDepPlot <- ggplot(delay_topDep) +
+  geom_col(aes(x = AirportFrom, y = n, fill = n >= 15000)) +
+  scale_fill_manual(
+    name = "Departure Count",
+    values = c("FALSE" = "blue", "TRUE" = "red"),
+    labels = c("Less than 15,000", "15,000 or more")
+  ) +
+  labs(title = "Departure Delay Count By Airports")
+
+delayDepPlot
+
+delayArvPlot <- ggplot(delay_topArv) +
+  geom_col(aes(x = AirportTo, y = n, fill = n >= 15000)) +
+  scale_fill_manual(
+    name = "Arrival Count",
+    values = c("FALSE" = "blue", "TRUE" = "red"),
+    labels = c("Less than 15,000", "15,000 or more")
+  ) +
+  labs(title = "Arrival Delay Count By Airports")
+
+delayArvPlot
+```
+
+```{r}
+delay_topDep_prepared <- delay_topDep %>%
+  rename(Airport = AirportFrom, DepartureCount = n) %>%
+  select(Airport, DepartureCount)
+
+delay_topArv_prepared <- delay_topArv %>%
+  rename(Airport = AirportTo, ArrivalCount = n) %>%
+  select(Airport, ArrivalCount)
+
+delay_totalCount <- full_join(
+  delay_topDep_prepared,
+  delay_topArv_prepared,
+  by = "Airport"
+)
+
+delay_totalCount
+```
+
+```{r}
+delay_totalCount <- delay_totalCount %>%
+  pivot_longer(
+    cols = c(DepartureCount, ArrivalCount),
+    names_to = "FlightType",
+    values_to = "Count"
+  )
+```
+
+
+```{r}
+delay_plot <- ggplot(delay_totalCount, aes(x = Airport, y = Count, fill = FlightType)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Top Airports by Departure and Arrival Counts",
+    x = "Airport",
+    y = "Count",
+    fill = "Flight Type"
+  ) +
+  theme_minimal()
+
+delay_plot
+```
+
+## Relationship between Ratings and Delay Count
+We will be using RSelenium for compatibility with R but scraping using Python is much easier.
+
+**Error handling** - StackOverflow
+<https://stackoverflow.com/questions/76294801/remdropen-hangs-when-using-rselenium-and-docker>
+
+```{r}
+library(RSelenium)
+library(rvest)
+```
+
+```{r}
+# Run Docker
+system('docker pull selenium/standalone-chrome:4.2.2')
+system('docker run -d -p 4445:4444 -v /dev/shm:/dev/shm --platform linux/amd64 selenium/standalone-chrome:4.2.2')
+```
+
+### Scrape Function (converted the python code into R from the tutorial)
+
+```{r}
+scrape_google_maps_reviews <- function(places_to_scrape) {
+  # Connect to the remote driver
+  remDr <- remoteDriver(
+    remoteServerAddr = "localhost",
+    port = 4445L,
+    browserName = "chrome"
+  )
+  
+  # Open the browser session
+  remDr$open()
+  
+  # Create a blank data frame to store the results
+  results_df <- data.frame(
+    Place = character(),
+    StarRating = numeric()
+  )
+  
+  # Loop through each place to scrape
+  for (place in places_to_scrape) {
+    cat("Scraping data for:", place, "\n")
+    
+    # Construct the search URL for Google Maps
+    search_url <- paste0("https://www.google.com/maps/search/", URLencode(paste(place, " Airport")))
+    
+    # Navigate to the search page
+    remDr$navigate(search_url)
+    
+    # Wait for the page to load
+    Sys.sleep(5)
+    
+    # Get the page source and read it with rvest
+    page_source <- remDr$getPageSource()[[1]]
+    page_html <- read_html(page_source)
+    
+    # Scrape the star rating using CSS selectors
+    # These selectors may change over time, so you might need to inspect the page HTML
+    # and update them if they stop working.
+    star_rating_raw <- page_html %>%
+      html_node(".fontDisplayLarge") %>% # This is a common class for the overall rating
+      html_text()
+    
+    # Clean and convert the star rating to a numeric value
+    if (!is.null(star_rating_raw)) {
+      # Use a more robust regex to extract the first occurrence of a number with an optional decimal
+      star_rating <- as.numeric(str_extract(star_rating_raw, "[0-9]+\\.?[0-9]*"))
+    } else {
+      star_rating <- NA
+    }
+    
+    # Add the result to the results data frame
+    results_df <- bind_rows(
+      results_df,
+      data.frame(
+        Place = place,
+        StarRating = star_rating
+      )
+    )
+  }
+  
+  # Close the browser session
+  remDr$close()
+  
+  return(results_df)
+}
+```
+
+### Scraping Ratings from Google Maps
+
+```{r}
+airports <- delay_topArv$AirportTo
+airport_ratings <- scrape_google_maps_reviews(airports)
+```
+
+```{r}
+airport_ratings
+
 ```
