@@ -2,7 +2,8 @@
 title: "AirlineProject"
 author: "Jake Lee"
 date: "`r Sys.Date()`"
-output: html_document
+output: html_document:
+  toc: true
 runtime: shiny
 ---
 
@@ -38,10 +39,18 @@ knitr::opts_chunk$set(echo = TRUE)
 #load required packages
 library(ggplot2)
 library(dplyr)
+library(tidyr)
 library(tidyverse)
 library(plotly)
 library(ggiraph)
+library(gitcreds)
+library(randomForest)
+library(factoextra)
+library(forecast)
+```
 
+
+```{r}
 passenger_stats <- read_csv("Datasets/Air_Traffic_Passenger_Statistics.csv")
 delay <- read_csv("Datasets/airlines_delay.csv")
 satis <- read_csv("Datasets/invistico_Airline.csv")
@@ -96,6 +105,28 @@ summary(delay)
 
 ```{r}
 any(is.na(satis))
+
+colnames(satis) <- gsub(" ", "_", colnames(satis))
+colnames(satis) <- gsub("-", "_", colnames(satis))
+
+satis$satisfaction <- as.factor(satis_clean$satisfaction)
+levels(satis_clean$satisfaction)
+```
+```{r}
+satis <- satis %>%
+  mutate(across(where(is.character), as.factor))
+```
+
+```{r}
+satis <- satis %>%
+  filter(!is.na(satisfaction)) %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .))) %>%
+  mutate(across(where(is.character), ~ ifelse(is.na(.), "Unknown", .)))
+```
+
+```{r}
+satis <- satis %>%
+  rename(time_conv = `Departure/Arrival time convenient`)
 ```
 
 ## Exploratory Data Analysis (EDA)
@@ -286,9 +317,9 @@ library(rvest)
 ```
 
 ```{r}
-# Run Docker
-system('docker pull selenium/standalone-chrome:4.2.2')
-system('docker run -d -p 4445:4444 -v /dev/shm:/dev/shm --platform linux/amd64 selenium/standalone-chrome:4.2.2')
+# Run Docker (Commented out to knit)
+#system('docker pull selenium/standalone-chrome:4.2.2')
+#system('docker run -d -p 4445:4444 -v /dev/shm:/dev/shm --platform linux/amd64 selenium/standalone-chrome:4.2.2')
 ```
 
 ### Scrape Function (converted the python code into R from the tutorial)
@@ -366,8 +397,95 @@ scrape_google_maps_reviews <- function(places_to_scrape) {
 airports <- delay_topArv$AirportTo
 airport_ratings <- scrape_google_maps_reviews(airports)
 ```
+# Statistical Tests
+## Correlation Test
 
 ```{r}
 airport_ratings
+```
+
+```{r}
+delay_traffic <- delay_totalCount %>%
+  pivot_wider(names_from = FlightType, values_from = Count) %>%
+  mutate(TotalDelays = ArrivalCount + DepartureCount)
+
+airport_ratings <- airport_ratings %>%
+  rename(Airport = Place)
+```
+
+```{r}
+airport_full <- airport_ratings %>%
+  inner_join(delay_traffic, by = "Airport")
+
+airport_full
+```
+
+```{r}
+RatingTotalNumTest <- cor.test(airport_full$StarRating, airport_full$TotalDelays)
+RatingTotalNumTest
+
+RatingDepartureNumTest <- cor.test(airport_full$StarRating, airport_full$DepartureCount)
+RatingDepartureNumTest
+
+RatingArrivalNumTest <- cor.test(airport_full$StarRating, airport_full$ArrivalCount)
+RatingArrivalNumTest
+```
+
+Since the correlations (0.0987884, 0.09771506, 0.09804246) is less than 0.3, the correlation is weak.
+
+## Linear Regression
+
+```{r}
+linearTotal <- lm(TotalDelays ~ StarRating, data = airport_full)
+summary(linearTotal)
+```
+
+## Logistic Regression
+
+```{r}
+airport_full <- airport_full %>%
+  mutate(HighDelay = ifelse(TotalDelays > median(TotalDelays), 1, 0))
+
+model_log <- glm(HighDelay ~ StarRating, data = airport_full, family = "binomial")
+summary(model_log)
+```
+
+## Delay ML Analysis
+### Random Forest 
+```{r}
+airport_full <- airport_full %>%
+  mutate(HighDelay = as.factor(ifelse(TotalDelays > median(TotalDelays), 1, 0)))
+
+set.seed(runif(1000))
+rf_airport <- randomForest(
+  HighDelay ~ StarRating + ArrivalCount + DepartureCount + TotalDelays,
+  data = airport_full,
+  ntree = 500,
+  importance = TRUE
+)
+
+rf_airport
+varImpPlot(rf_airport)
+```
+
+```{r}
+satis$satisfaction <- as.factor(satis$satisfaction)
+set.seed(runif(2000))
+
+satis_reduced <- satis %>%
+  select(satisfaction, Age, Flight_Distance, Seat_comfort, time_conv, Food_and_drink,
+         Gate_location, Inflight_wifi_service, Inflight_entertainment, Online_support,
+         Ease_of_Online_booking, On_board_service, Leg_room_service, Baggage_handling,
+         Checkin_service, Cleanliness, Online_boarding)
+
+rf_satis <- randomForest(
+  satisfaction ~ .,
+  data = satis_reduced,
+  ntree = 500,
+  importance = TRUE
+)
+
+varImpPlot(rf_satis)
 
 ```
+
